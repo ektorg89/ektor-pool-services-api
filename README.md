@@ -1,6 +1,6 @@
 # Ektor Pool Services API
 
-Production-style REST API using FastAPI and SQLAlchemy with MySQL. Implements customers, properties, and invoice billing with validations and relational integrity.
+FastAPI & MySQL billing API with CRUD, filtering, and validation — portfolio project modeling real-world business logic.
 
 This project models real-world billing workflows such as recurring invoices, customer ownership, and date-based filtering.
 
