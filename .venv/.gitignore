@@ -1,6 +1,18 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
+# env / secrets
 .env
+.env.* 
+!.env.example
+
+# virtualenv
 .venv/
+venv/
+env/
+
+# python cache
 __pycache__/
 *.pyc
 
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
