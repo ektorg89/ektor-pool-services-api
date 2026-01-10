@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_db
+from app.api.v1.api import api_router
 from app.models.models import Customer, Invoice, Property
 from app.schemas.schemas import (
     CustomerOut,
@@ -20,6 +21,7 @@ from app.schemas.schemas import (
 
 app = FastAPI(title="Ektor Pool Services API")
 
+app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/health")
 def health():
