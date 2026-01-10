@@ -111,3 +111,30 @@ class CustomerStatementOut(BaseModel):
 class CustomerUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+
+class PropertyOut(BaseModel):
+    property_id: int
+    customer_id: int
+    label: str
+    address1: str
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: int
+
+    class Config:
+        from_attributes = True
+
+
+class PropertyCreate(BaseModel):
+    customer_id: int = Field(..., ge=1, le=100)
+    label: str = Field(..., min_length=2, max_length=80)
+    address1: str = Field(..., min_length=3, max_length=120)
+    address2: Optional[str] = Field(default=None, max_length=120)
+    city: Optional[str] = Field(default=None, max_length=80)
+    state: Optional[str] = Field(default=None, max_length=80)
+    postal_code: Optional[str] = Field(default=None, max_length=20)
+    notes: Optional[str] = None
+    is_active: int = Field(default=1)
