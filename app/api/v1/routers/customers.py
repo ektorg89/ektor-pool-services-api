@@ -42,3 +42,22 @@ def get_customer(
         raise HTTPException(status_code=404, detail="Customer not found")
 
     return customer
+
+@router.delete("/{customer_id}", status_code=204)
+def delete_customer(
+    customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
+    db: Session = Depends(get_db),
+):
+    customer = db.query(Customer).filter(Customer.customer_id == customer_id).first()
+
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    try:
+        db.delete(customer)
+        db.commit()
+        return None
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Customer cannot be deleted due to references")
