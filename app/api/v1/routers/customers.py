@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.models import Customer
-from app.schemas.schemas import CustomerCreate, CustomerOut
+from app.schemas.schemas import CustomerCreate, CustomerOut, CustomerUpdate
 
 router = APIRouter()
 
@@ -61,3 +61,36 @@ def delete_customer(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Customer cannot be deleted due to references")
+    
+@router.patch("/{customer_id}", response_model=CustomerOut)
+def update_customer(
+    payload: CustomerUpdate,
+    customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
+    db: Session = Depends(get_db),
+):
+    customer = db.query(Customer).filter(Customer.customer_id == customer_id).first()
+
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    updated = False
+
+    if payload.first_name is not None:
+        customer.first_name = payload.first_name
+        updated = True
+
+    if payload.last_name is not None:
+        customer.last_name = payload.last_name
+        updated = True
+
+    if not updated:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+
+    try:
+        db.commit()
+        db.refresh(customer)
+        return customer
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Database constraint violation")
