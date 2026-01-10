@@ -65,3 +65,20 @@ def get_property(
     if row is None:
         raise HTTPException(status_code=404, detail="Property not found")
     return row
+
+@router.delete("/{property_id}", status_code=204)
+def delete_property(
+    property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
+    db: Session = Depends(get_db),
+):
+    row = db.query(Property).filter(Property.property_id == property_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    try:
+        db.delete(row)
+        db.commit()
+        return None
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Property cannot be deleted due to references")
