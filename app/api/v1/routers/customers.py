@@ -94,3 +94,26 @@ def update_customer(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
+    
+@router.put("/{customer_id}", response_model=CustomerOut)
+def replace_customer(
+    customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
+    payload: CustomerCreate = None,  # FastAPI lo tratará como body
+    db: Session = Depends(get_db),
+):
+    customer = db.query(Customer).filter(Customer.customer_id == customer_id).first()
+
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    customer.first_name = payload.first_name
+    customer.last_name = payload.last_name
+
+    try:
+        db.commit()
+        db.refresh(customer)
+        return customer
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Database constraint violation")
