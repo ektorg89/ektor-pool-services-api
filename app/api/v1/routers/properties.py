@@ -95,6 +95,42 @@ def update_property(
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
 
+@router.put("/{property_id}", response_model=PropertyOut)
+def replace_property(
+    payload: PropertyCreate,
+    property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
+    db: Session = Depends(get_db),
+):
+    row = db.query(Property).filter(Property.property_id == property_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    customer_exists = (
+        db.query(Customer.customer_id)
+        .filter(Customer.customer_id == payload.customer_id)
+        .first()
+    )
+    if customer_exists is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    row.customer_id = payload.customer_id
+    row.label = payload.label
+    row.address1 = payload.address1
+    row.address2 = payload.address2
+    row.city = payload.city
+    row.state = payload.state
+    row.postal_code = payload.postal_code
+    row.notes = payload.notes
+    row.is_active = payload.is_active
+
+    try:
+        db.commit()
+        db.refresh(row)
+        return row
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Database constraint violation")
+
 @router.delete("/{property_id}", status_code=204)
 def delete_property(
     property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
