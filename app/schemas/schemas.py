@@ -107,3 +107,7 @@ class CustomerStatementOut(BaseModel):
     to_date: date
     total: Decimal
     items: list[StatementItem]
+
+class CustomerUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
