@@ -138,3 +138,13 @@ class PropertyCreate(BaseModel):
     postal_code: Optional[str] = Field(default=None, max_length=20)
     notes: Optional[str] = None
     is_active: int = Field(default=1)
+
+class PropertyUpdate(BaseModel):
+    label: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[int] = None

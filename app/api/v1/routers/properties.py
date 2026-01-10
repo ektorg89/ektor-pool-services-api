@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.models import Customer, Property
-from app.schemas.schemas import PropertyCreate, PropertyOut
+from app.schemas.schemas import PropertyCreate, PropertyOut, PropertyUpdate
 
 router = APIRouter()
 
@@ -65,6 +65,35 @@ def get_property(
     if row is None:
         raise HTTPException(status_code=404, detail="Property not found")
     return row
+
+@router.patch("/{property_id}", response_model=PropertyOut)
+def update_property(
+    property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
+    payload: PropertyUpdate = None,
+    db: Session = Depends(get_db),
+):
+    row = db.query(Property).filter(Property.property_id == property_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    updated = False
+
+    for field in ("label", "address1", "address2", "city", "state", "postal_code", "notes", "is_active"):
+        value = getattr(payload, field, None)
+        if value is not None:
+            setattr(row, field, value)
+            updated = True
+
+    if not updated:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+
+    try:
+        db.commit()
+        db.refresh(row)
+        return row
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Database constraint violation")
 
 @router.delete("/{property_id}", status_code=204)
 def delete_property(
