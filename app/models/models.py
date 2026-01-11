@@ -86,3 +86,18 @@ class Invoice(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
+
+class Payment(Base):
+    __tablename__ = "payments"
+
+    payment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    invoice_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
+    paid_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    method: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
