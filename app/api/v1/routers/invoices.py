@@ -43,3 +43,13 @@ def list_invoices(
         q = q.filter(Invoice.issued_date <= to_date)
 
     return q.order_by(Invoice.invoice_id.desc()).limit(50).all()
+
+@router.get("/{invoice_id}", response_model=InvoiceOut)
+def get_invoice(
+    invoice_id: int = Path(..., ge=1, description="Invoice ID (>= 1)"),
+    db: Session = Depends(get_db),
+):
+    row = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return row
