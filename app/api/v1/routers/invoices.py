@@ -53,3 +53,50 @@ def get_invoice(
     if row is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return row
+
+@router.post("", response_model=InvoiceOut, status_code=201)
+def create_invoice(payload: InvoiceCreate, db: Session = Depends(get_db)):
+    customer_exists = (
+        db.query(Customer.customer_id)
+        .filter(Customer.customer_id == payload.customer_id)
+        .first()
+    )
+    if customer_exists is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    property_row = (
+        db.query(Property.property_id, Property.customer_id)
+        .filter(Property.property_id == payload.property_id)
+        .first()
+    )
+    if property_row is None:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    if property_row.customer_id != payload.customer_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Property does not belong to the given customer_id",
+        )
+
+    new_invoice = Invoice(
+        customer_id=payload.customer_id,
+        property_id=payload.property_id,
+        period_start=payload.period_start,
+        period_end=payload.period_end,
+        status=payload.status,
+        issued_date=payload.issued_date,
+        due_date=payload.due_date,
+        subtotal=payload.subtotal,
+        tax=payload.tax,
+        total=payload.total,
+        notes=payload.notes,
+    )
+
+    try:
+        db.add(new_invoice)
+        db.commit()
+        db.refresh(new_invoice)
+        return new_invoice
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Database constraint violation")
