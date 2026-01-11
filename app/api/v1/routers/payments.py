@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -24,6 +24,29 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     if invoice.status == "void":
         raise HTTPException(status_code=400, detail="Cannot pay a void invoice")
 
+    # 10.5.2 — block duplicate reference for the same invoice
+    if payload.reference:
+        dup = (
+            db.query(Payment.payment_id)
+            .filter(Payment.invoice_id == payload.invoice_id)
+            .filter(Payment.reference == payload.reference)
+            .first()
+        )
+        if dup is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Duplicate payment reference for this invoice",
+            )
+
+    paid_so_far = (
+        db.query(func.coalesce(func.sum(Payment.amount), 0))
+        .filter(Payment.invoice_id == invoice.invoice_id)
+        .scalar()
+    )
+
+    if (Decimal(str(paid_so_far)) + payload.amount) > Decimal(str(invoice.total)):
+        raise HTTPException(status_code=409, detail="Payment exceeds invoice total")
+
     new_payment = Payment(
         invoice_id=payload.invoice_id,
         amount=payload.amount,
@@ -33,27 +56,11 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
         notes=payload.notes,
     )
 
-    paid_so_far = (
-    db.query(func.coalesce(func.sum(Payment.amount), 0))
-    .filter(Payment.invoice_id == invoice.invoice_id)
-    .scalar()
-    )
-
-    if (Decimal(str(paid_so_far)) + payload.amount) > invoice.total:
-        raise HTTPException(status_code=409, detail="Payment exceeds invoice total")
-
     try:
         db.add(new_payment)
 
         inv_total = Decimal(str(invoice.total))
-        paid_sum = (
-            db.query(Payment)
-            .with_entities(Payment.amount)
-            .filter(Payment.invoice_id == payload.invoice_id)
-            .all()
-        )
-        already_paid = sum((Decimal(str(x[0])) for x in paid_sum), Decimal("0.00"))
-        new_total_paid = already_paid + Decimal(str(payload.amount))
+        new_total_paid = Decimal(str(paid_so_far)) + Decimal(str(payload.amount))
 
         if new_total_paid >= inv_total:
             invoice.status = "paid"
@@ -67,10 +74,15 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
-    
+
+
 @router.get("", response_model=list[PaymentOut])
 def list_payments(
-    invoice_id: int | None = Query(default=None, ge=1, le=100),
+    invoice_id: int | None = Query(
+        default=None,
+        ge=1,
+        description="Filter by invoice_id (>= 1)",
+    ),
     db: Session = Depends(get_db),
 ):
     q = db.query(Payment)
@@ -79,17 +91,3 @@ def list_payments(
         q = q.filter(Payment.invoice_id == invoice_id)
 
     return q.order_by(Payment.payment_id.desc()).limit(50).all()
-
-@router.get("", response_model=list[PaymentOut])
-def list_payments(
-    invoice_id: int | None = Query(default=None, ge=1, le=100, description="Filter by invoice_id (1-100)"),
-    db: Session = Depends(get_db),
-):
-    q = db.query(Payment)
-
-    if invoice_id is not None:
-        q = q.filter(Payment.invoice_id == invoice_id)
-
-    return q.order_by(Payment.payment_id.desc()).limit(50).all()
-    
-    
