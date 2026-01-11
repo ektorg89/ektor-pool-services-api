@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +18,9 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
+    if invoice.status == "paid":
+        raise HTTPException(status_code=409, detail="Invoice is already paid")
+
     if invoice.status == "void":
         raise HTTPException(status_code=400, detail="Cannot pay a void invoice")
 
@@ -28,6 +32,15 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
         reference=payload.reference,
         notes=payload.notes,
     )
+
+    paid_so_far = (
+    db.query(func.coalesce(func.sum(Payment.amount), 0))
+    .filter(Payment.invoice_id == invoice.invoice_id)
+    .scalar()
+    )
+
+    if (Decimal(str(paid_so_far)) + payload.amount) > invoice.total:
+        raise HTTPException(status_code=409, detail="Payment exceeds invoice total")
 
     try:
         db.add(new_payment)
