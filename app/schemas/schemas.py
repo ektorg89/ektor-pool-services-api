@@ -93,6 +93,23 @@ class InvoiceCreate(BaseModel):
                 raise ValueError("total must equal subtotal + tax")
         return v
 
+class PaymentCreate(BaseModel):
+    invoice_id: int = Field(..., ge=1, le=100)
+    amount: Decimal = Field(..., gt=Decimal("0.00"))
+    paid_date: date = Field(...)
+    method: Optional[str] = Field(default=None, max_length=30)
+    reference: Optional[str] = Field(default=None, max_length=50)
+    notes: Optional[str] = None
+
+
+class PaymentOut(BaseModel):
+    payment_id: int
+    invoice_id: int
+    amount: Decimal
+    paid_date: date
+    method: Optional[str] = None
+    reference: Optional[str] = None
+    notes: Optional[str] = None
 
 class StatementItem(BaseModel):
     invoice_id: int
