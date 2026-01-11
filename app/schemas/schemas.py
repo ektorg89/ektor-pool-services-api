@@ -110,6 +110,9 @@ class PaymentOut(BaseModel):
     method: Optional[str] = None
     reference: Optional[str] = None
     notes: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 class StatementItem(BaseModel):
     invoice_id: int

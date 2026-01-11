@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,6 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # Regla simple: no permitir pagos en invoices void
     if invoice.status == "void":
         raise HTTPException(status_code=400, detail="Cannot pay a void invoice")
 
@@ -33,8 +32,6 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     try:
         db.add(new_payment)
 
-        # Si con este pago queda saldada o sobrepagada => paid
-        # (Como no tenemos balance formal todavía, usamos subtotal+tax como total)
         inv_total = Decimal(str(invoice.total))
         paid_sum = (
             db.query(Payment)
@@ -57,3 +54,29 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
+    
+@router.get("", response_model=list[PaymentOut])
+def list_payments(
+    invoice_id: int | None = Query(default=None, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Payment)
+
+    if invoice_id is not None:
+        q = q.filter(Payment.invoice_id == invoice_id)
+
+    return q.order_by(Payment.payment_id.desc()).limit(50).all()
+
+@router.get("", response_model=list[PaymentOut])
+def list_payments(
+    invoice_id: int | None = Query(default=None, ge=1, le=100, description="Filter by invoice_id (1-100)"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Payment)
+
+    if invoice_id is not None:
+        q = q.filter(Payment.invoice_id == invoice_id)
+
+    return q.order_by(Payment.payment_id.desc()).limit(50).all()
+    
+    
