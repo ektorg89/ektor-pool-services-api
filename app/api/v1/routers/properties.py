@@ -11,7 +11,11 @@ from app.schemas.schemas import PropertyCreate, PropertyOut, PropertyUpdate
 router = APIRouter()
 
 
-@router.get("", response_model=list[PropertyOut])
+@router.get(
+    "",
+    response_model=list[PropertyOut],
+    operation_id="v1_properties_list",
+)
 def list_properties(
     customer_id: Optional[int] = Query(default=None, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -24,7 +28,12 @@ def list_properties(
     return q.order_by(Property.property_id.desc()).limit(50).all()
 
 
-@router.post("", response_model=PropertyOut, status_code=201)
+@router.post(
+    "",
+    response_model=PropertyOut,
+    status_code=201,
+    operation_id="v1_properties_create",
+)
 def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
     customer_exists = (
         db.query(Customer.customer_id)
@@ -35,16 +44,16 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Customer not found")
 
     new_property = Property(
-    customer_id=payload.customer_id,
-    label=payload.label,
-    address1=payload.address1,
-    address2=payload.address2,
-    city=payload.city,
-    state=payload.state,
-    postal_code=payload.postal_code,
-    notes=payload.notes,
-    is_active=payload.is_active,
-)
+        customer_id=payload.customer_id,
+        label=payload.label,
+        address1=payload.address1,
+        address2=payload.address2,
+        city=payload.city,
+        state=payload.state,
+        postal_code=payload.postal_code,
+        notes=payload.notes,
+        is_active=payload.is_active,
+    )
 
     try:
         db.add(new_property)
@@ -56,7 +65,11 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Database constraint violation")
 
 
-@router.get("/{property_id}", response_model=PropertyOut)
+@router.get(
+    "/{property_id}",
+    response_model=PropertyOut,
+    operation_id="v1_properties_get",
+)
 def get_property(
     property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
     db: Session = Depends(get_db),
@@ -66,7 +79,12 @@ def get_property(
         raise HTTPException(status_code=404, detail="Property not found")
     return row
 
-@router.patch("/{property_id}", response_model=PropertyOut)
+
+@router.patch(
+    "/{property_id}",
+    response_model=PropertyOut,
+    operation_id="v1_properties_update",
+)
 def update_property(
     property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
     payload: PropertyUpdate = None,
@@ -78,7 +96,16 @@ def update_property(
 
     updated = False
 
-    for field in ("label", "address1", "address2", "city", "state", "postal_code", "notes", "is_active"):
+    for field in (
+        "label",
+        "address1",
+        "address2",
+        "city",
+        "state",
+        "postal_code",
+        "notes",
+        "is_active",
+    ):
         value = getattr(payload, field, None)
         if value is not None:
             setattr(row, field, value)
@@ -95,7 +122,12 @@ def update_property(
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
 
-@router.put("/{property_id}", response_model=PropertyOut)
+
+@router.put(
+    "/{property_id}",
+    response_model=PropertyOut,
+    operation_id="v1_properties_replace",
+)
 def replace_property(
     payload: PropertyCreate,
     property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
@@ -131,7 +163,12 @@ def replace_property(
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
 
-@router.delete("/{property_id}", status_code=204)
+
+@router.delete(
+    "/{property_id}",
+    status_code=204,
+    operation_id="v1_properties_delete",
+)
 def delete_property(
     property_id: int = Path(..., ge=1, le=100, description="Property ID (1-100)"),
     db: Session = Depends(get_db),
@@ -146,4 +183,6 @@ def delete_property(
         return None
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Property cannot be deleted due to references")
+        raise HTTPException(
+            status_code=409, detail="Property cannot be deleted due to references"
+        )

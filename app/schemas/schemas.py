@@ -96,7 +96,7 @@ class InvoiceCreate(BaseModel):
 class PaymentCreate(BaseModel):
     invoice_id: int = Field(..., ge=1, le=100)
     amount: Decimal = Field(..., gt=Decimal("0.00"))
-    paid_date: date = Field(...)
+    paid_date: date = Field(default_factory=date.today)
     method: Optional[str] = Field(default=None, max_length=30)
     reference: Optional[str] = Field(default=None, max_length=50)
     notes: Optional[str] = None
@@ -133,6 +133,8 @@ class CustomerUpdate(BaseModel):
     last_name: Optional[str] = None
 
 class PropertyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     property_id: int
     customer_id: int
     label: str
@@ -143,10 +145,6 @@ class PropertyOut(BaseModel):
     postal_code: Optional[str] = None
     notes: Optional[str] = None
     is_active: int
-
-    class Config:
-        from_attributes = True
-
 
 class PropertyCreate(BaseModel):
     customer_id: int = Field(..., ge=1, le=100)

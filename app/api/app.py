@@ -18,8 +18,14 @@ from app.schemas.schemas import (
     CustomerStatementOut,
     StatementItem,
 )
+from app.core.handlers import register_exception_handlers, register_request_id_middleware
+from app.core.logging import configure_logging
 
+configure_logging()
 app = FastAPI(title="Ektor Pool Services API")
+
+register_request_id_middleware(app)
+register_exception_handlers(app)
 
 app.include_router(api_router, prefix="/api/v1")
 

@@ -165,7 +165,7 @@ CREATE TABLE payments (
   invoice_id  BIGINT UNSIGNED NOT NULL,
   paid_date   DATE NOT NULL,
   amount      DECIMAL(10,2) NOT NULL,
-  method      ENUM('cash','ath_movil','card','bank_transfer','check','other') NOT NULL DEFAULT 'other',
+  method      ENUM('cash','ath_movil','card','bank_transfer','check','other') NULL DEFAULT 'other',
   reference   VARCHAR(80),
   notes       VARCHAR(255),
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

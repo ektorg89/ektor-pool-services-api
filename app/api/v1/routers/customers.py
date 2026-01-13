@@ -8,13 +8,21 @@ from app.schemas.schemas import CustomerCreate, CustomerOut, CustomerUpdate
 
 router = APIRouter()
 
-
-@router.get("", response_model=list[CustomerOut])
+@router.get(
+    "",
+    response_model=list[CustomerOut],
+    operation_id="v1_customers_list",
+)
 def list_customers(db: Session = Depends(get_db)):
     return db.query(Customer).order_by(Customer.customer_id.desc()).limit(50).all()
 
 
-@router.post("", response_model=CustomerOut, status_code=201)
+@router.post(
+    "",
+    response_model=CustomerOut,
+    status_code=201,
+    operation_id="v1_customers_create",
+)
 def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
     try:
         new_customer = Customer(
@@ -31,7 +39,11 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Database constraint violation")
 
 
-@router.get("/{customer_id}", response_model=CustomerOut)
+@router.get(
+    "/{customer_id}",
+    response_model=CustomerOut,
+    operation_id="v1_customers_get",
+)
 def get_customer(
     customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
     db: Session = Depends(get_db),
@@ -43,7 +55,12 @@ def get_customer(
 
     return customer
 
-@router.delete("/{customer_id}", status_code=204)
+
+@router.delete(
+    "/{customer_id}",
+    status_code=204,
+    operation_id="v1_customers_delete",
+)
 def delete_customer(
     customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
     db: Session = Depends(get_db),
@@ -60,9 +77,17 @@ def delete_customer(
 
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Customer cannot be deleted due to references")
-    
-@router.patch("/{customer_id}", response_model=CustomerOut)
+        raise HTTPException(
+            status_code=409,
+            detail="Customer cannot be deleted due to references",
+        )
+
+
+@router.patch(
+    "/{customer_id}",
+    response_model=CustomerOut,
+    operation_id="v1_customers_update_partial",
+)
 def update_customer(
     payload: CustomerUpdate,
     customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
@@ -94,11 +119,16 @@ def update_customer(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
-    
-@router.put("/{customer_id}", response_model=CustomerOut)
+
+
+@router.put(
+    "/{customer_id}",
+    response_model=CustomerOut,
+    operation_id="v1_customers_replace",
+)
 def replace_customer(
+    payload: CustomerCreate,
     customer_id: int = Path(..., ge=1, le=100, description="Customer ID (1-100)"),
-    payload: CustomerCreate = None,  # FastAPI lo tratará como body
     db: Session = Depends(get_db),
 ):
     customer = db.query(Customer).filter(Customer.customer_id == customer_id).first()

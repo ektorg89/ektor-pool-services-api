@@ -12,7 +12,12 @@ from app.schemas.schemas import PaymentCreate, PaymentOut
 router = APIRouter()
 
 
-@router.post("", response_model=PaymentOut, status_code=201)
+@router.post(
+    "",
+    response_model=PaymentOut,
+    status_code=201,
+    operation_id="v1_payments_create",
+)
 def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     invoice = db.query(Invoice).filter(Invoice.invoice_id == payload.invoice_id).first()
     if invoice is None:
@@ -24,7 +29,6 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     if invoice.status == "void":
         raise HTTPException(status_code=400, detail="Cannot pay a void invoice")
 
-    # 10.5.2 — block duplicate reference for the same invoice
     if payload.reference:
         dup = (
             db.query(Payment.payment_id)
@@ -51,7 +55,7 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
         invoice_id=payload.invoice_id,
         amount=payload.amount,
         paid_date=payload.paid_date,
-        method=payload.method,
+        method=payload.method or "other",
         reference=payload.reference,
         notes=payload.notes,
     )
@@ -71,12 +75,19 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
         db.refresh(new_payment)
         return new_payment
 
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Database constraint violation")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Database constraint violation: {str(getattr(e, 'orig', e))}",
+        )
 
 
-@router.get("", response_model=list[PaymentOut])
+@router.get(
+    "",
+    response_model=list[PaymentOut],
+    operation_id="v1_payments_list",
+)
 def list_payments(
     invoice_id: int | None = Query(
         default=None,

@@ -12,7 +12,11 @@ from app.schemas.schemas import InvoiceCreate, InvoiceOut
 router = APIRouter()
 
 
-@router.get("", response_model=list[InvoiceOut])
+@router.get(
+    "",
+    response_model=list[InvoiceOut],
+    operation_id="v1_invoices_list",
+)
 def list_invoices(
     status: Optional[str] = Query(
         default=None,
@@ -44,7 +48,12 @@ def list_invoices(
 
     return q.order_by(Invoice.invoice_id.desc()).limit(50).all()
 
-@router.get("/{invoice_id}", response_model=InvoiceOut)
+
+@router.get(
+    "/{invoice_id}",
+    response_model=InvoiceOut,
+    operation_id="v1_invoices_get",
+)
 def get_invoice(
     invoice_id: int = Path(..., ge=1, description="Invoice ID (>= 1)"),
     db: Session = Depends(get_db),
@@ -54,7 +63,13 @@ def get_invoice(
         raise HTTPException(status_code=404, detail="Invoice not found")
     return row
 
-@router.post("", response_model=InvoiceOut, status_code=201)
+
+@router.post(
+    "",
+    response_model=InvoiceOut,
+    status_code=201,
+    operation_id="v1_invoices_create",
+)
 def create_invoice(payload: InvoiceCreate, db: Session = Depends(get_db)):
     customer_exists = (
         db.query(Customer.customer_id)
@@ -97,6 +112,7 @@ def create_invoice(payload: InvoiceCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_invoice)
         return new_invoice
+
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Database constraint violation")
