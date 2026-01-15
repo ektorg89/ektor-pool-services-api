@@ -10,44 +10,34 @@ def _ref(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
 
-def _get_first(client, path: str):
-    r = client.get(path)
-    assert r.status_code == 200
-    items = r.json()
-    return items[0] if items else None
-
-
-def _get_invoice(client, invoice_id: int):
-    r = client.get(f"/api/v1/invoices/{invoice_id}")
-    assert r.status_code == 200
-    return r.json()
-
-
 def _create_customer(client):
-    payload = {"first_name": "Test", "last_name": _ref("Cust")}
+    payload = {"first_name": "Test", "last_name": _ref("User")}
     r = client.post("/api/v1/customers", json=payload)
-    assert r.status_code == 201
+    assert r.status_code == 201, r.json()
     return r.json()["customer_id"]
 
 
 def _create_property(client, customer_id: int):
     payload = {
         "customer_id": customer_id,
-        "label": "Test Pool",
+        "label": "Test Property",
         "address1": "123 Test St",
         "address2": None,
-        "city": "Aguadilla",
+        "city": "Test City",
         "state": "PR",
-        "postal_code": "00603",
+        "postal_code": "00601",
         "notes": None,
-        "is_active": 1,
+        "is_active": True,
     }
     r = client.post("/api/v1/properties", json=payload)
-    assert r.status_code == 201
+    assert r.status_code == 201, r.json()
     return r.json()["property_id"]
 
 
-def _create_invoice(client, customer_id: int, property_id: int, total: float, status: str):
+def _create_invoice(client, customer_id: int, property_id: int, status: str, total: float = 30.00):
+    tax = 3.00
+    subtotal = round(total - tax, 2)
+
     payload = {
         "customer_id": customer_id,
         "property_id": property_id,
@@ -55,32 +45,33 @@ def _create_invoice(client, customer_id: int, property_id: int, total: float, st
         "period_end": "2026-01-31",
         "issued_date": "2026-01-31",
         "due_date": "2026-02-10",
-        "subtotal": round(total - 3.00, 2),
-        "tax": 3.00,
-        "total": round(total, 2),
+        "subtotal": subtotal,
+        "tax": tax,
+        "total": total,
         "status": status,
         "notes": "test invoice",
     }
     r = client.post("/api/v1/invoices", json=payload)
-
-    if r.status_code == 422:
-        pytest.skip(f"InvoiceCreate rejected status='{status}' (422).")
-    if r.status_code != 201:
-        pytest.skip(f"InvoiceCreate failed: status={r.status_code}, body={r.json()}")
-
+    assert r.status_code == 201, r.json()
     return r.json()["invoice_id"]
 
 
-def _create_fresh_sent_invoice_or_skip(client, total: float):
+def _get_invoice(client, invoice_id: int):
+    r = client.get(f"/api/v1/invoices/{invoice_id}")
+    assert r.status_code == 200, r.json()
+    return r.json()
+
+
+def _create_sent_invoice(client, total: float = 30.00):
     customer_id = _create_customer(client)
     property_id = _create_property(client, customer_id)
-    invoice_id = _create_invoice(client, customer_id, property_id, total, "sent")
+    return _create_invoice(client, customer_id, property_id, status="sent", total=total)
 
-    inv = _get_invoice(client, invoice_id)
-    if inv.get("status") != "sent":
-        pytest.skip(f"Expected invoice status 'sent' but got '{inv.get('status')}'.")
 
-    return invoice_id
+def _create_void_invoice(client, total: float = 30.00):
+    customer_id = _create_customer(client)
+    property_id = _create_property(client, customer_id)
+    return _create_invoice(client, customer_id, property_id, status="void", total=total)
 
 
 def test_create_payment_422_validation_error_standard_shape(client):
@@ -99,85 +90,80 @@ def test_create_payment_422_validation_error_standard_shape(client):
 
 
 def test_create_payment_partial_keeps_invoice_sent(client):
-    invoice_id = _create_fresh_sent_invoice_or_skip(client, 30.00)
+    invoice_id = _create_sent_invoice(client, total=30.00)
     before = _get_invoice(client, invoice_id)
     total = float(before["total"])
     amount = max(round(total / 3, 2), 0.01)
 
     payload = {"invoice_id": invoice_id, "amount": amount, "reference": _ref("PARTIAL")}
     r = client.post("/api/v1/payments", json=payload)
-
-    if r.status_code != 201:
-        pytest.skip(f"Partial payment failed: status={r.status_code}, body={r.json()}")
+    assert r.status_code == 201, r.json()
+    assert _has_request_id_header(r.headers)
 
     after = _get_invoice(client, invoice_id)
     assert after["status"] == "sent"
-    assert _has_request_id_header(r.headers)
 
 
 def test_create_payment_total_marks_invoice_paid(client):
-    invoice_id = _create_fresh_sent_invoice_or_skip(client, 30.00)
+    invoice_id = _create_sent_invoice(client, total=30.00)
     before = _get_invoice(client, invoice_id)
     total = float(before["total"])
 
     payload = {"invoice_id": invoice_id, "amount": total, "reference": _ref("FULL")}
     r = client.post("/api/v1/payments", json=payload)
-
-    if r.status_code != 201:
-        pytest.skip(f"Full payment failed: status={r.status_code}, body={r.json()}")
+    assert r.status_code == 201, r.json()
+    assert _has_request_id_header(r.headers)
 
     after = _get_invoice(client, invoice_id)
     assert after["status"] == "paid"
-    assert _has_request_id_header(r.headers)
 
 
 def test_cannot_pay_paid_invoice_409(client):
-    inv = _get_first(client, "/api/v1/invoices?status=paid")
-    if not inv:
-        pytest.skip("No 'paid' invoice available in DB.")
+    invoice_id = _create_sent_invoice(client, total=30.00)
+    total = float(_get_invoice(client, invoice_id)["total"])
 
-    payload = {"invoice_id": inv["invoice_id"], "amount": 0.01, "reference": _ref("PAID")}
-    r = client.post("/api/v1/payments", json=payload)
+    r1 = client.post("/api/v1/payments", json={"invoice_id": invoice_id, "amount": total, "reference": _ref("PAY")})
+    assert r1.status_code == 201, r1.json()
 
-    assert r.status_code == 409
-    assert _has_request_id_header(r.headers)
+    r2 = client.post("/api/v1/payments", json={"invoice_id": invoice_id, "amount": 0.01, "reference": _ref("PAY2")})
+    assert r2.status_code == 409
+    body = r2.json()
+    assert "code" in body and "message" in body and "timestamp" in body
+    assert _has_request_id_header(r2.headers)
 
 
 def test_cannot_pay_void_invoice_400(client):
-    inv = _get_first(client, "/api/v1/invoices?status=void")
-    if not inv:
-        pytest.skip("No 'void' invoice available in DB.")
+    invoice_id = _create_void_invoice(client, total=30.00)
 
-    payload = {"invoice_id": inv["invoice_id"], "amount": 0.01, "reference": _ref("VOID")}
-    r = client.post("/api/v1/payments", json=payload)
-
+    r = client.post("/api/v1/payments", json={"invoice_id": invoice_id, "amount": 0.01, "reference": _ref("VOID")})
     assert r.status_code == 400
+    body = r.json()
+    assert "code" in body and "message" in body and "timestamp" in body
     assert _has_request_id_header(r.headers)
 
 
 def test_cannot_exceed_invoice_total_409(client):
-    invoice_id = _create_fresh_sent_invoice_or_skip(client, 30.00)
-    before = _get_invoice(client, invoice_id)
+    invoice_id = _create_sent_invoice(client, total=30.00)
+    total = float(_get_invoice(client, invoice_id)["total"])
 
-    payload = {
-        "invoice_id": invoice_id,
-        "amount": float(before["total"]) + 9999,
-        "reference": _ref("EXCEED"),
-    }
+    payload = {"invoice_id": invoice_id, "amount": total + 9999, "reference": _ref("EXCEED")}
     r = client.post("/api/v1/payments", json=payload)
 
-    assert r.status_code in (400, 409)
+    assert r.status_code == 409
+    body = r.json()
+    assert "code" in body and "message" in body and "timestamp" in body
     assert _has_request_id_header(r.headers)
 
 
 def test_duplicate_reference_per_invoice_409(client):
-    invoice_id = _create_fresh_sent_invoice_or_skip(client, 30.00)
-    ref = _ref("DUP")
+    invoice_id = _create_sent_invoice(client, total=30.00)
+    ref = _ref("DUPREF")
 
     r1 = client.post("/api/v1/payments", json={"invoice_id": invoice_id, "amount": 0.01, "reference": ref})
-    if r1.status_code != 201:
-        pytest.skip(f"First payment failed: status={r1.status_code}, body={r1.json()}")
+    assert r1.status_code == 201, r1.json()
 
     r2 = client.post("/api/v1/payments", json={"invoice_id": invoice_id, "amount": 0.01, "reference": ref})
     assert r2.status_code == 409
+    body = r2.json()
+    assert "code" in body and "message" in body and "timestamp" in body
     assert _has_request_id_header(r2.headers)
