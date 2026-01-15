@@ -12,6 +12,11 @@ from sqlalchemy import (
     String,
     Text,
     DECIMAL,
+    Column,
+    BigInteger,
+    String,
+    Boolean,
+    func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -19,6 +24,17 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class Base(DeclarativeBase):
     pass
 
+class User(Base):
+    __tablename__ = "users"
+
+    user_id = Column(BigInteger().with_variant(BigInteger, "mysql"), primary_key=True, autoincrement=True)
+    username = Column(String(60), nullable=False, unique=True)
+    email = Column(String(120), nullable=False, unique=True)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 class Customer(Base):
     __tablename__ = "customers"
