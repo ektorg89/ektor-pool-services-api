@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.v1.routers.auth import require_roles
 from app.db.session import get_db
 from app.models.models import Invoice, Payment
 from app.schemas.schemas import PaymentCreate, PaymentOut
@@ -17,6 +18,7 @@ router = APIRouter()
     response_model=PaymentOut,
     status_code=201,
     operation_id="v1_payments_create",
+    dependencies=[Depends(require_roles("admin"))],
 )
 def create_payment(payload: PaymentCreate, db: Session = Depends(get_db)):
     invoice = db.query(Invoice).filter(Invoice.invoice_id == payload.invoice_id).first()
